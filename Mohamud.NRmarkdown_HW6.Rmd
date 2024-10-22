@@ -1,0 +1,162 @@
+---
+title: "homework6"
+output: html_document
+date: "2024-10-22"
+---
+
+# Loading Libraries
+```{r}
+install.packages("dplyr")
+install.packages("ggplot2")
+install.packages("gridExtra")
+library(dplyr)
+library(ggplot2)
+library(gridExtra)
+```
+
+```{r merging data}
+# 2018
+respondent_18 <- read.csv("/Users/nimomohamud/Desktop/DS/2018/atusresp-2018/atusresp_2018.dat")
+activity_18 <- read.csv("/Users/nimomohamud/Desktop/DS/2018/atussum-2018/atussum_2018.dat")
+roster_18 <- read.csv("/Users/nimomohamud/Desktop/DS/2018/atusrost-2018/atusrost_2018.dat")
+cps_18 <- read.csv("/Users/nimomohamud/Desktop/DS/2018/atuscps-2018/atuscps_2018.dat")
+
+# 2019
+respondent_19 <- read.csv("/Users/nimomohamud/Desktop/DS/2019/atusresp-2019/atusresp_2019.dat")
+activity_19 <- read.csv("/Users/nimomohamud/Desktop/DS/2019/atussum-2019/atussum_2019.dat")
+roster_19 <- read.csv("/Users/nimomohamud/Desktop/DS/2019/atusrost-2019/atusrost_2019.dat")
+cps_19 <- read.csv("/Users/nimomohamud/Desktop/DS/2019/atuscps-2019/atuscps_2019.dat")
+
+# 2020
+respondent_20 <- read.csv("/Users/nimomohamud/Desktop/DS/2020/atusresp-2020/atusresp_2020.dat")
+activity_20 <- read.csv("/Users/nimomohamud/Desktop/DS/2020/atussum-2020/atussum_2020.dat")
+roster_20 <- read.csv("/Users/nimomohamud/Desktop/DS/2020/atusrost-2020/atusrost_2020.dat")
+cps_20 <- read.csv("/Users/nimomohamud/Desktop/DS/2020/atuscps-2020/atuscps_2020.dat")
+
+# 2021
+respondent_21 <- read.csv("/Users/nimomohamud/Desktop/DS/2021/atusresp-2021/atusresp_2021.dat")
+activity_21 <- read.csv("/Users/nimomohamud/Desktop/DS/2021/atussum-2021/atussum_2021.dat")
+roster_21 <- read.csv("/Users/nimomohamud/Desktop/DS/2021/atusrost-2021/atusrost_2021.dat")
+cps_21 <- read.csv("/Users/nimomohamud/Desktop/DS/2021/atuscps-2021/atuscps_2021.dat")
+
+
+```
+
+```{r combining data}
+# Merge files for 2018
+data_18 <- respondent_18 %>%
+  inner_join(activity_18, by = "TUCASEID", suffix = c(".respondent", ".activity")) %>%
+  inner_join(roster_18, by = "TUCASEID", suffix = c("", ".roster")) %>%
+  inner_join(cps_18, by = "TUCASEID", suffix = c("", ".cps"))
+
+# Merge files for 2019
+data_19 <- respondent_19 %>%
+  inner_join(activity_19, by = "TUCASEID", suffix = c(".respondent", ".activity")) %>%
+  inner_join(roster_19, by = "TUCASEID", suffix = c("", ".roster")) %>%
+  inner_join(cps_19, by = "TUCASEID", suffix = c("", ".cps"))
+
+# Merge files for 2020
+data_20 <- respondent_20 %>%
+  inner_join(activity_20, by = "TUCASEID", suffix = c(".respondent", ".activity")) %>%
+  inner_join(roster_20, by = "TUCASEID", suffix = c("", ".roster")) %>%
+  inner_join(cps_20, by = "TUCASEID", suffix = c("", ".cps"))
+# Merge files for 2021
+data_21 <- respondent_21 %>%
+  inner_join(activity_21, by = "TUCASEID", suffix = c(".respondent", ".activity")) %>%
+  inner_join(roster_21, by = "TUCASEID", suffix = c("", ".roster")) %>%
+  inner_join(cps_21, by = "TUCASEID", suffix = c("", ".cps"))
+
+#Bind multiple data frames by row
+data_pre_pandemic <- bind_rows(data_18, data_19)
+data_pandemic <- bind_rows(data_20, data_21)
+
+# Combine all data into `one` final dataset with new column "period" variable
+all_data <- bind_rows(
+  data_18 %>% mutate(year = 2018, period = "Pre-pandemic"),
+  data_19 %>% mutate(year = 2019, period = "Pre-pandemic"),
+  data_20 %>% mutate(year = 2020, period = "Pandemic"),
+  data_21 %>% mutate(year = 2021, period = "Pandemic"))
+
+```
+```{r variables of interest}
+#vars of interest: pre-pandemic data 
+pre_childcare_min<-data_pre_pandemic$TRTCC
+pre_eldercare_min<-data_pre_pandemic$TRTEC.activity
+
+#vars of interest: pandemic data
+pan_childcare_min<-data_pandemic$TRTCC
+pan_eldercare_min<-data_pandemic$TRTEC.activity
+
+
+```
+
+```{r Visualizaiton}
+#VIS for CHILDCARE across pre_pandemic and pandemic
+childcare_data <- data.frame(
+  Time = c(pre_childcare_min, pan_childcare_min),
+  Period = rep(c("Pre-Pandemic", "Pandemic"), 
+               times = c(length(pre_childcare_min), length(pan_childcare_min)))
+)
+#  boxplot + violin plot for Childcare
+?geom_violin
+childcare_plot<-ggplot(childcare_data, aes(x = Period, y = Time, fill = Period)) +
+  geom_violin() +  
+  geom_boxplot(width = 0.1, position = position_dodge(width = 0.75)) + 
+  scale_y_log10() +  
+  labs(title = "Distribution of Childcare Time by Period",
+       x = "Time Period",
+       y = "Time Spent on Childcare in Minutes on Log Scale)") +
+  scale_fill_manual(values = c("Pre-Pandemic" = "lightblue", "Pandemic" = "salmon")) +
+  theme_minimal() 
+
+#VIS for ELDErCARE across pre-pan and pan
+eldercare_plot<-ggplot(eldercare_data, aes(x = Period, y = Time, fill = Period)) +
+  geom_violin() +  
+  geom_boxplot(width = 0.1, position = position_dodge(width = 0.75)) + 
+  scale_y_log10() + 
+  labs(title = "Distribution of Eldercare Time by Period",
+       x = "Time Period",
+       y = "Time Spent on Eldercare in Minutes on Log Scale") +
+  scale_fill_manual(values = c("Pre-Pandemic" = "lightblue", "Pandemic" = "salmon")) +  # Color coding
+  theme_minimal() 
+
+grid.arrange(childcare_plot, eldercare_plot, ncol = 2)
+
+##WITHOUT LOG 
+nolog_childcare_plot<-ggplot(childcare_data, aes(x = Period, y = Time, fill = Period)) +
+  geom_violin() +  
+  geom_boxplot(width = 0.1, position = position_dodge(width = 0.75)) + 
+  labs(title = "Distribution of Childcare Time by Period",
+       x = "Time Period",
+       y = "Time Spent on Childcare in Minutes)") +
+  scale_fill_manual(values = c("Pre-Pandemic" = "lightblue", "Pandemic" = "salmon")) +
+  theme_minimal() 
+
+#VIS for ELDErCARE across pre-pan and pan
+nolog_eldercare_plot<-ggplot(eldercare_data, aes(x = Period, y = Time, fill = Period)) +
+  geom_violin() +  
+  geom_boxplot(width = 0.1, position = position_dodge(width = 0.75)) + 
+  labs(title = "Distribution of Eldercare Time by Period",
+       x = "Time Period",
+       y = "Time Spent on Eldercare in Minutes") +
+  scale_fill_manual(values = c("Pre-Pandemic" = "lightblue", "Pandemic" = "salmon")) +  # Color coding
+  theme_minimal() 
+plots<-grid.arrange(childcare_plot, eldercare_plot,nolog_childcare_plot,nolog_eldercare_plot,ncol = 4)
+ggsave("grid_of_plots.png", plots, width = 16, height = 4)
+grid.arrange(nolog_childcare_plot,nolog_eldercare_plot,ncol = 2)
+grid.arrange(nolog_childcare_plot,childcare_plot,ncol = 2)
+
+```
+
+```{r non log visualization}
+
+grid.arrange(nolog_childcare_plot,nolog_eldercare_plot,ncol = 2)
+
+```
+
+```{r log version of the vis}
+grid.arrange(nolog_childcare_plot,childcare_plot,ncol = 2)
+
+```
+
+
