@@ -1,0 +1,787 @@
+---
+title: "Homework12_Mohamud_N"
+output: html_document
+---
+# Loading Libraries
+```{r}
+packs <- c("tidyverse", "spData", "terra", "tidyterra", "remotes", "sf", "gstat", "gridExtra", "cowplot", "caret", "ggplot2", "car")
+lapply(packs, require, character.only = TRUE)
+
+
+```
+
+```{r loading datasets}
+# 2018
+respondent_18 <- read.csv("/Users/nimomohamud/Desktop/DS/2018/atusresp-2018/atusresp_2018.dat")
+activity_18 <- read.csv("/Users/nimomohamud/Desktop/DS/2018/atussum-2018/atussum_2018.dat")
+roster_18 <- read.csv("/Users/nimomohamud/Desktop/DS/2018/atusrost-2018/atusrost_2018.dat")
+cps_18 <- read.csv("/Users/nimomohamud/Desktop/DS/2018/atuscps-2018/atuscps_2018.dat")
+elder_18<- read.csv("/Users/nimomohamud/Desktop/DS/2018/atusrostec-2018/atusrostec_2018.dat")
+
+
+# 2019
+respondent_19 <- read.csv("/Users/nimomohamud/Desktop/DS/2019/atusresp-2019/atusresp_2019.dat")
+activity_19 <- read.csv("/Users/nimomohamud/Desktop/DS/2019/atussum-2019/atussum_2019.dat")
+roster_19 <- read.csv("/Users/nimomohamud/Desktop/DS/2019/atusrost-2019/atusrost_2019.dat")
+cps_19 <- read.csv("/Users/nimomohamud/Desktop/DS/2019/atuscps-2019/atuscps_2019.dat")
+elder_19<- read.csv("/Users/nimomohamud/Desktop/DS/2019/atusrostec-2019/atusrostec_2019.dat")
+
+
+# 2020
+respondent_20 <- read.csv("/Users/nimomohamud/Desktop/DS/2020/atusresp-2020/atusresp_2020.dat")
+activity_20 <- read.csv("/Users/nimomohamud/Desktop/DS/2020/atussum-2020/atussum_2020.dat")
+roster_20 <- read.csv("/Users/nimomohamud/Desktop/DS/2020/atusrost-2020/atusrost_2020.dat")
+cps_20 <- read.csv("/Users/nimomohamud/Desktop/DS/2020/atuscps-2020/atuscps_2020.dat")
+elder_20<- read.csv("/Users/nimomohamud/Desktop/DS/2020/atusrostec-2020/atusrostec_2020.dat")
+
+
+# 2021
+respondent_21 <- read.csv("/Users/nimomohamud/Desktop/DS/2021/atusresp-2021/atusresp_2021.dat")
+activity_21 <- read.csv("/Users/nimomohamud/Desktop/DS/2021/atussum-2021/atussum_2021.dat")
+roster_21 <- read.csv("/Users/nimomohamud/Desktop/DS/2021/atusrost-2021/atusrost_2021.dat")
+cps_21 <- read.csv("/Users/nimomohamud/Desktop/DS/2021/atuscps-2021/atuscps_2021.dat")
+elder_21<- read.csv("/Users/nimomohamud/Desktop/DS/2021/atusrostec-2021/atusrostec_2021.dat")
+
+
+```
+
+```{r merging file by year}
+# Merge files for 2018
+
+data_18 <- respondent_18 %>%
+  inner_join(activity_18, by = "TUCASEID", suffix = c(".respondent", ".activity")) %>%
+  inner_join(roster_18, by = "TUCASEID", suffix = c("", ".roster")) %>%
+  inner_join(cps_18, by = "TUCASEID", suffix = c("", ".cps")) %>%
+  inner_join(elder_18, by = "TUCASEID", suffix = c("", ".elder"))
+
+
+# Merge files for 2019
+data_19 <- respondent_19 %>%
+  inner_join(activity_19, by = "TUCASEID", suffix = c(".respondent", ".activity")) %>%
+  inner_join(roster_19, by = "TUCASEID", suffix = c("", ".roster")) %>%
+  inner_join(cps_19, by = "TUCASEID", suffix = c("", ".cps"))%>%
+  inner_join(elder_19, by = "TUCASEID", suffix = c("", ".elder"))
+
+
+# Merge files for 2020
+data_20 <- respondent_20 %>%
+  inner_join(activity_20, by = "TUCASEID", suffix = c(".respondent", ".activity")) %>%
+  inner_join(roster_20, by = "TUCASEID", suffix = c("", ".roster")) %>%
+  inner_join(cps_20, by = "TUCASEID", suffix = c("", ".cps"))%>%
+  inner_join(elder_20, by = "TUCASEID", suffix = c("", ".elder"))
+
+# Merge files for 2021
+data_21 <- respondent_21 %>%
+  inner_join(activity_21, by = "TUCASEID", suffix = c(".respondent", ".activity")) %>%
+  inner_join(roster_21, by = "TUCASEID", suffix = c("", ".roster")) %>%
+  inner_join(cps_21, by = "TUCASEID", suffix = c("", ".cps"))%>%
+  inner_join(elder_21, by = "TUCASEID", suffix = c("", ".elder"))
+
+
+```
+
+```{r combinding data}
+# finding common cols across all datasets
+common_cols <- intersect(intersect(names(data_18), names(data_19)), 
+                         intersect(names(data_20), names(data_21)))
+
+# selecting only the common cols from each data set
+same_c_data_18 <- dplyr::select(data_18, all_of(common_cols))
+same_c_data_19 <- dplyr::select(data_19, all_of(common_cols))
+same_c_data_20 <- dplyr::select(data_20, all_of(common_cols))
+same_c_data_21 <- dplyr::select(data_21, all_of(common_cols))
+
+# binding the rows to prevent is.n
+data_pre_pandemic <- bind_rows(same_c_data_18, same_c_data_19)
+data_pandemic <- bind_rows(same_c_data_20, same_c_data_21)
+
+
+combined_data <- bind_rows(data_pre_pandemic %>% mutate(period = "Pre-Pandemic"),data_pandemic %>% mutate(period = "Pandemic"))
+
+# combine TRTEC from 2018-2021 with corresponding year and period labels
+
+combined_trtec <- bind_rows(
+  data_18 %>% select(TRTEC = TRTEC.activity) %>% mutate(year = 2018, period = "Pre-Pandemic"),
+  data_19 %>% select(TRTEC = TRTEC.activity) %>% mutate(year = 2019, period = "Pre-Pandemic"),
+  data_20 %>% select(TRTEC = TRTEC.activity) %>% mutate(year = 2020, period = "Pandemic"),
+  data_21 %>% select(TRTEC = TRTEC.activity) %>% mutate(year = 2021, period = "Pandemic")
+)
+
+#Weekend/weekday vars: 
+combined_data <- combined_data %>%
+  mutate(
+    day_type = case_when(
+      TUDIARYDAY.respondent %in% c(1, 7) ~ "Weekend",  # 1 = Sunday, 7 = Saturday
+      TUDIARYDAY.respondent %in% 2:6 ~ "Weekday"       # 2-6 = Monday to Friday
+    )
+  )
+
+#month and season vars 
+combined_data <- combined_data %>%
+  mutate(
+    #getting the month from the date format 
+    Month = substr(as.character(TUDIARYDATE), 5, 6),
+    season = case_when(
+      Month %in% c("12", "01", "02") ~ "Winter",
+      Month %in% c("03", "04", "05") ~ "Spring",
+      Month %in% c("06", "07", "08") ~ "Summer",
+      Month %in% c("09", "10", "11") ~ "Fall"
+    )
+  )
+
+
+```
+
+#Childcare 
+## analysis 
+
+```{r chilcare analysis }
+# Childcare Analysis
+
+# Adding childcare variables to combined data
+combined_childcare <- bind_rows(
+  same_c_data_18 %>% select(TUCASEID, TRTCC, TRTHH = TRTHH.respondent, TRTOHHCHILD, TRNUMHOU, TEAGE, TRSPPRES = TRSPPRES.respondent, TRNHHCHILD, TROHHCHILD, TUDIARYDAY = TUDIARYDAY.respondent, TUDIARYDATE) %>% mutate(year = 2018, period = "Pre-Pandemic"),
+  same_c_data_19 %>% select(TUCASEID, TRTCC, TRTHH = TRTHH.respondent, TRTOHHCHILD, TRNUMHOU, TEAGE, TRSPPRES = TRSPPRES.respondent, TRNHHCHILD, TROHHCHILD, TUDIARYDAY = TUDIARYDAY.respondent, TUDIARYDATE) %>% mutate(year = 2019, period = "Pre-Pandemic"),
+  same_c_data_20 %>% select(TUCASEID, TRTCC, TRTHH = TRTHH.respondent, TRTOHHCHILD, TRNUMHOU, TEAGE, TRSPPRES = TRSPPRES.respondent, TRNHHCHILD, TROHHCHILD, TUDIARYDAY = TUDIARYDAY.respondent, TUDIARYDATE) %>% mutate(year = 2020, period = "Pandemic"),
+  same_c_data_21 %>% select(TUCASEID, TRTCC, TRTHH = TRTHH.respondent, TRTOHHCHILD, TRNUMHOU, TEAGE, TRSPPRES = TRSPPRES.respondent, TRNHHCHILD, TROHHCHILD, TUDIARYDAY = TUDIARYDAY.respondent, TUDIARYDATE) %>% mutate(year = 2021, period = "Pandemic")
+)
+
+# Adding weekend/weekday, month, and season variables
+combined_childcare <- combined_childcare %>%
+  mutate(
+    day_type = case_when(
+      TUDIARYDAY %in% c(1, 7) ~ "Weekend",  # 1 = Sunday, 7 = Saturday
+      TUDIARYDAY %in% 2:6 ~ "Weekday"       # 2-6 = Monday to Friday
+    ),
+    Month = substr(as.character(TUDIARYDATE), 5, 6),  # Extract month from YYYYMMDD format
+    season = case_when(
+      Month %in% c("12", "01", "02") ~ "Winter",
+      Month %in% c("03", "04", "05") ~ "Spring",
+      Month %in% c("06", "07", "08") ~ "Summer",
+      Month %in% c("09", "10", "11") ~ "Fall"
+    )
+  )
+
+# Creating subsets for single- and multi-adult households
+# Fix child count logic
+single_adult_child <- combined_childcare %>%
+  filter(
+    TRNUMHOU >= 2,                 # At least 2 people in the household
+    TRSPPRES == 3,                 #No spouse or unmarried partner present
+    TEAGE > 17,                    # Respondent is an adult
+    (TRNUMHOU - 1) * 13 > TEAGE   # Remaining members must be under 13
+  ) %>%
+  mutate(household_type = "Single-Adult")
+
+multi_adult_child <- combined_childcare %>%
+  filter(
+    TRNUMHOU >= 3,                       # At least 3 people in the household (2 adults + children)
+    TRSPPRES %in% c(1, 2),               # Spouse or unmarried partner present
+    TEAGE > 17,                          # Respondent is an adult
+    (TRNUMHOU - 2) * 13 > TEAGE         # Remaining members must all be under 13
+  ) %>%
+  mutate(household_type = "Multi-Adult")
+
+
+
+
+
+
+# Combine datasets for plotting
+child_combined_householdstypes <- bind_rows(single_adult_child, multi_adult_child)
+sum(is.na(child_combined_householdstypes))
+
+summary(child_combined_householdstypes$TRTCC)
+```
+
+
+## visuallization 
+#Did the time spent on childcare activities differ between single-adult and multi-adult households during the pandemic years (2020-2021) compared to pre-pandemic years (2018-2019)?
+```{r Pandemic Impact Question}
+# Violin plot: Childcare time by household type and period
+child_combined_householdstypes$period <- factor(child_combined_householdstypes$period, 
+                                                levels = c("Pre-Pandemic", "Pandemic"))
+
+ggplot(child_combined_householdstypes, aes(x = period, y = TRTCC, fill = household_type)) +
+  geom_violin(trim = FALSE, alpha = 0.7) +  # Add violin plot
+  geom_boxplot(width = 0.2, position = position_dodge(0.9), outlier.shape = NA) +  # Add box plots
+  labs(title = "Violin and Box Plot of Childcare Time by Period and Household Type",
+       x = "Period",
+       y = "Childcare Time",
+       fill = "Household Type") +
+  theme_minimal()
+ggplot(child_combined_householdstypes, aes(x = factor(year), y = TRTCC, fill = household_type)) +
+  geom_violin(trim = FALSE, alpha = 0.7, position = position_dodge(0.9)) +  # Add violin plot with dodge
+  geom_boxplot(width = 0.2, position = position_dodge(0.9), outlier.shape = NA, alpha = 0.9) +  # Add box plot with proper dodge
+  labs(title = "Violin and Box Plot of Childcare Time by Year and Household Type",
+       x = "Year",
+       y = "Childcare Time",
+       fill = "Household Type") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for better readability
+
+
+
+# Density plot: Childcare time by period and household type
+ggplot(child_combined_householdstypes, aes(x = TRTCC, fill = household_type)) +
+  geom_density(alpha = 0.5) +
+  facet_wrap(~ period) +
+  labs(title = "Density Plot of Childcare Time by Period and Household Type",
+       x = "Childcare Time",
+       y = "Density",
+       fill = "Household Type") +
+  theme_minimal()
+
+```
+#Did childcare time vary significantly across seasons (Winter, Spring, Summer, Fall)? Was this variation different for single-adult vs. multi-adult households?
+
+```{r Season Trends Questions}
+# Violin plot: Childcare time by season and household type
+ggplot(child_combined_householdstypes, aes(x = season, y = TRTCC, fill = household_type)) +
+  geom_violin(trim = FALSE, position = position_dodge(0.9), alpha = 0.7) +  
+  geom_boxplot(width = 0.2, position = position_dodge(0.9), outlier.shape = NA) +  
+  facet_wrap(~ period) +  # Facet by period
+  labs(title = "Violin and Box Plot of Childcare Time by Year, Period, and Household Type",
+       x = "Year",
+       y = "Childcare Time",
+       fill = "Household Type") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  
+
+# Density plot: Childcare time by season
+ggplot(child_combined_householdstypes, aes(x = TRTCC, fill = season)) +
+  geom_density(alpha = 0.5) +
+  facet_wrap(~ household_type) +
+  labs(title = "Density Plot of Childcare Time by Season and Household Type",
+       x = "Childcare Time",
+       y = "Density",
+       fill = "Season") +
+  theme_minimal()
+```
+#Is there a difference in childcare time between weekdays and weekends for single-adult and multi-adult households? Did these patterns change during the pandemic?
+
+```{r Days of the Week Question}
+
+ggplot(child_combined_householdstypes, aes(x = day_type, y = TRTCC, fill = household_type)) +
+  geom_violin(trim = FALSE, alpha = 0.7) +
+  facet_wrap(~ period) +
+  geom_boxplot(width = 0.2, position = position_dodge(0.9), outlier.shape = NA, alpha = 0.9) +
+  labs(title = "Childcare Time by Day of the Week and Household Type",
+       x = "Day of the Week",
+       y = "Childcare Time",
+       fill = "Household Type") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
+
+
+# Violin plot: Childcare time by day type and period
+ggplot(child_combined_householdstypes, aes(x = day_type, y = TRTCC, fill = household_type)) +
+  geom_violin(trim = FALSE) +
+  facet_wrap(~ year) +
+  labs(title = "Violin Plot of Childcare Time by Day Type, Period, and Household Type",
+       x = "Day Type",
+       y = " Childcare Time",
+       fill = "Household Type") +
+  theme_minimal()
+
+# Density plot: Childcare time by day type
+ggplot(child_combined_householdstypes, aes(x = TRTCC, fill = day_type)) +
+  geom_density(alpha = 0.5) +
+  facet_wrap(~ household_type) +
+  labs(title = "Density Plot of Childcare Time by Day Type and Household Type",
+       x = " Childcare Time",
+       y = "Density",
+       fill = "Day Type") +
+  theme_minimal()
+```
+
+
+#model selection
+```{r all subset }
+library(leaps)
+
+####all- subset: better choice due to the small predicetor size
+library(leaps)
+all_subsets <- regsubsets(TRTCC ~ household_type * period +
+                            household_type * day_type +
+                            season * period +
+                            day_type * period,
+                          data = child_combined_householdstypes,
+                          nbest = 1,  # it only keeps the best model of each size
+                          nvmax = NULL,  # we are asking it to explore all subset sizes
+                          method = "exhaustive")
+summary(all_subsets)
+#best model based on BIC
+best_model <- summary(all_subsets)$which[which.min(summary(all_subsets)$bic), ]
+child_best_model <- lm(
+  TRTCC ~ household_type * period +
+    household_type * day_type +
+    period * season +
+    period * day_type +
+    season,
+  data = child_combined_householdstypes
+)
+
+# Summary of the final model
+summary(child_best_model)
+
+#household_typeSingle-Adult:periodPandemic and seasonSummer are insig 
+#partial f-test 
+reduced_child_model <- lm(TRTCC ~ household_type * day_type + period * season + period * day_type + season, 
+                    data = child_combined_householdstypes) 
+
+anova(reduced_child_model, child_best_model) #The reduced model  explains the data almost as well as the full model 
+summary(reduced_child_model)
+plot(child_best_model)
+summary(child_best_model)$r.squared
+
+
+# Plot residuals vs. fitted values
+plot(resid(reduced_child_model) ~ fitted(reduced_child_model),
+     xlab = "Predicted Y", 
+     ylab = "Residuals", 
+     main = "Model Residuals",
+     pch = 16, col = "blue")  # Add points for better visualization
+
+# Add a horizontal line at 0 for reference
+abline(h = 0, col = "red", lwd = 2)
+
+
+
+
+
+
+```
+
+
+```{r CV after model finalizaion }
+library(caret)
+trainIndex <- createDataPartition(child_combined_householdstypes$TRTCC, p = .8, list = FALSE)
+trainData <- child_combined_householdstypes[trainIndex, ]
+testData <- child_combined_householdstypes[-trainIndex, ]
+best_model_cv <- lm(formula(child_best_model), data = trainData)
+pred <- predict(best_model_cv, newdata = testData)
+mean((testData$TRTCC - pred)^2)  # Mean Squared Error 69583.78
+
+
+
+```
+
+```{r mc}
+library(usdm)
+library(car)
+predictors <- child_combined_householdstypes[, c("household_type", "period", "day_type", "season")]
+predictors <- data.frame(lapply(predictors, function(x) {
+  if (is.factor(x) || is.character(x)) as.numeric(as.factor(x)) else x
+}))
+vif_results <- vifstep(predictors, th = 10)  # Adjust the threshold if needed
+print(vif_results)
+
+
+#No variable from the 4 input variables has collinearity problem. 
+```
+
+
+```{r random forest}
+library(randomForest)
+library(caret)
+
+rf_model <- randomForest(TRTCC ~ household_type + period + day_type + season, data = child_combined_householdstypes)
+print(rf_model)
+
+importance(rf_model)
+varImpPlot(rf_model)
+
+# k 10-fold cv 
+cv_control <- trainControl(
+  method = "cv",        
+  number = 10,            
+  verboseIter = TRUE      
+)
+
+# Train the Random Forest model with cross-validation
+rf_cv_model <- train(
+  TRTCC ~ household_type + period + day_type + season,  
+  data = child_combined_householdstypes,               
+  method = "rf",    # Random Forest method
+  trControl = cv_control,      # cv control that i defined earlier 
+  tuneGrid = expand.grid(.mtry = c( 3))   
+)
+
+# Print the results of cross-validation
+print(rf_cv_model)
+
+# Best model summary
+rf_cv_model$bestTune  # Show the best hyperparameter (mtry)
+
+varImpPlot(rf_model)
+
+pred <- predict(rf_cv_model, newdata = child_combined_householdstypes)
+plot(child_combined_householdstypes$TRTCC, pred,
+     xlab = "Observed TRTCC", ylab = "Predicted TRTCC",
+     main = "Observed vs. Predicted TRTCC")
+abline(0, 1, col = "red", lwd = 2)
+
+
+```
+
+```{r comparison table}
+# Load necessary libraries
+library(broom)
+
+lm_equation <- "TRTCC ~ household_type * day_type + period * season + period * day_type + season"
+rf_equation <- "TRTCC ~ household_type + period + day_type + season"
+# grabbing all the metrics from the lm
+lm_adj_r2 <- summary(reduced_child_model)$adj.r.squared  # Adjusted R²
+lm_aic <- AIC(reduced_child_model)                      # AIC
+lm_bic <- BIC(reduced_child_model)                      # BIC
+lm_rmse <- sqrt(mean(resid(reduced_child_model)^2))     # RMSE (calculated manually)
+
+# grabbing all the metrics from the rfm
+rf_r2 <- rf_cv_model$results$Rsquared[which.min(rf_cv_model$results$RMSE)]  # R² from cross-validation
+rf_rmse <- min(rf_cv_model$results$RMSE)                                   # Best RMSE
+rf_mae <- rf_cv_model$results$MAE[which.min(rf_cv_model$results$RMSE)]     # MAE
+
+#creating comparison table
+model_comparison <- data.frame(
+  Model = c("Linear Model (LM)", "Random Forest (RF)"),
+  Equation = c(lm_equation, rf_equation),
+  `Adjusted R²` = c(lm_adj_r2, rf_r2),
+  AIC = c(lm_aic, NA),  #aic for lm but unavailable for the rfm                          
+  BIC = c(lm_bic, NA), #BIC for lm but unavailable for the rfm   
+  RMSE = c(lm_rmse, rf_rmse), #both have RMSE
+  MAE = c(NA, rf_mae), # MAE for rfm but unabilable for lm
+  `% Variance Explained` = c(NA, rf_r2 * 100)  # % Variance Explained only avialibale for rfm
+)
+print(model_comparison)
+
+
+```
+
+
+
+
+```{r decision tree}
+library(rpart)
+library(rpart.plot)
+tree_model <- rpart(
+  TRTCC ~ household_type + period + day_type + season,
+  data = child_combined_householdstypes,
+  method = "poisson")
+
+rpart.plot(tree_model)
+
+
+
+```
+
+```{r dt}
+
+library(rpart)
+tree_model <- rpart(household_type + period + day_type + season, 
+                    data = child_combined_householdstypes)
+plot(tree_model)
+text(tree_model)
+
+
+```
+
+#Eldercare 
+
+# Eldercare Analysis
+```{r combined eldercare data}
+# Adding eldercare variables to combined data
+combined_eldercare <- bind_rows(
+  same_c_data_18 %>% select(TUCASEID, TRTEC = TRTEC.respondent, TRELHH, TEELDUR, TRNUMHOU, TEAGE, TEAGE_EC, TRSPPRES = TRSPPRES.respondent, TUDIARYDAY = TUDIARYDAY.respondent, TUDIARYDATE) %>% mutate(year = 2018, period = "Pre-Pandemic"),
+  same_c_data_19 %>% select(TUCASEID, TRTEC = TRTEC.respondent, TRELHH, TEELDUR, TRNUMHOU, TEAGE, TEAGE_EC, TRSPPRES = TRSPPRES.respondent, TUDIARYDAY = TUDIARYDAY.respondent, TUDIARYDATE) %>% mutate(year = 2019, period = "Pre-Pandemic"),
+  same_c_data_20 %>% select(TUCASEID, TRTEC = TRTEC.respondent, TRELHH, TEELDUR, TRNUMHOU, TEAGE, TEAGE_EC, TRSPPRES = TRSPPRES.respondent, TUDIARYDAY = TUDIARYDAY.respondent, TUDIARYDATE) %>% mutate(year = 2020, period = "Pandemic"),
+  same_c_data_21 %>% select(TUCASEID, TRTEC = TRTEC.respondent, TRELHH, TEELDUR, TRNUMHOU, TEAGE, TEAGE_EC, TRSPPRES = TRSPPRES.respondent, TUDIARYDAY = TUDIARYDAY.respondent, TUDIARYDATE) %>% mutate(year = 2021, period = "Pandemic")
+)
+
+# Adding day_type, month, and season columns
+combined_eldercare <- combined_eldercare %>%
+  mutate(
+    day_type = case_when(
+      TUDIARYDAY %in% c(1, 7) ~ "Weekend",
+      TUDIARYDAY %in% 2:6 ~ "Weekday"
+    ),
+    Month = substr(as.character(TUDIARYDATE), 5, 6),
+    season = case_when(
+      Month %in% c("12", "01", "02") ~ "Winter",
+      Month %in% c("03", "04", "05") ~ "Spring",
+      Month %in% c("06", "07", "08") ~ "Summer",
+      Month %in% c("09", "10", "11") ~ "Fall"
+    )
+  )
+
+# Creating subsets for single- and multi-adult households
+single_adult_eldercare <- combined_eldercare %>%
+  filter(
+    TRNUMHOU >= 2,                 # Exactly two people in the household (one adult + one elder)
+    TEAGE > 17,                    # Respondent is an adult
+    TRSPPRES == 3,                 # No spouse or unmarried partner present
+    TRTEC >= 0 # there are 42,634/ 2,323,231 have -1 values 
+  ) %>%
+  mutate(household_type = "Single-Adult")
+
+multi_adult_eldercare <- combined_eldercare %>%
+  filter(
+    TRNUMHOU >= 3,                 # At least 3 people in the household
+    TRSPPRES %in% c(1, 2),         # Spouse or unmarried partner present
+    TEAGE > 17,                    # Respondent is an adult
+    TRTEC >= 0 # there are 42,634/ 2,323,231 have -1 values 
+  ) %>%
+  mutate(household_type = "Multi-Adult")
+
+# Combine both datasets for plotting
+elder_combined_householdstypes <- bind_rows(single_adult_eldercare, multi_adult_eldercare) 
+sum(is.na(elder_combined_householdstypes))
+
+
+```
+#Did the time spent on eldercare activities differ between single-adult and multi-adult households during the pandemic years (2020-2021) compared to pre-pandemic years (2018-2019)?
+```{r Pandemic Impact Question}
+# Violin plot: eldercare time by household type and period
+elder_combined_householdstypes$period <- factor(elder_combined_householdstypes$period, 
+                                                levels = c("Pre-Pandemic", "Pandemic"))
+
+ggplot(elder_combined_householdstypes, aes(x = period, y = TRTEC, fill = household_type)) +
+  geom_violin(trim = FALSE, alpha = 0.7) +  # Add violin plot
+  geom_boxplot(width = 0.2, position = position_dodge(0.9), outlier.shape = NA) +  # Add box plots
+  labs(title = "Violin and Box Plot of Eldercare Time by Period and Household Type",
+       x = "Period",
+       y = "Eldercare Time",
+       fill = "Household Type") +
+  theme_minimal()
+
+```
+
+#Did childcare time vary significantly across seasons (Winter, Spring, Summer, Fall)? Was this variation different for single-adult vs. multi-adult households?
+
+```{r Season Trends Questions}
+# Violin plot: Childcare time by season and household type
+ggplot(elder_combined_householdstypes, aes(x = season, y = TRTEC, fill = household_type)) +
+  geom_violin(trim = FALSE, position = position_dodge(0.9), alpha = 0.7) +  
+  geom_boxplot(width = 0.2, position = position_dodge(0.9), outlier.shape = NA) +  
+  facet_wrap(~ period) +  # Facet by period
+  labs(title = "Violin and Box Plot of Eldercare Time by Year, Period, and Household Type",
+       x = "Year",
+       y = "Eldercare Time",
+       fill = "Household Type") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  
+
+# Density plot: Childcare time by season
+ggplot(elder_combined_householdstypes, aes(x = TRTEC, fill = season)) +
+  geom_density(alpha = 0.5) +
+  facet_wrap(~ household_type) +
+  labs(title = "Density Plot of Eldercare Time by Season and Household Type",
+       x = "Eldercare Time",
+       y = "Density",
+       fill = "Season") +
+  theme_minimal()
+
+```
+
+#Is there a difference in eldercare time between weekdays and weekends for single-adult and multi-adult households? Did these patterns change during the pandemic?
+
+```{r Days of the Week Question}
+
+ggplot(elder_combined_householdstypes, aes(x = day_type, y = TRTEC, fill = household_type)) +
+  geom_violin(trim = FALSE, alpha = 0.7) +
+  facet_wrap(~ period) +
+  geom_boxplot(width = 0.2, position = position_dodge(0.9), outlier.shape = NA, alpha = 0.9) +
+  labs(title = "Eldercare Time by Day of the Week and Household Type",
+       x = "Day of the Week",
+       y = "Eldercare Time",
+       fill = "Household Type") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
+
+
+# Violin plot: eldercare time by day type and period
+ggplot(elder_combined_householdstypes, aes(x = day_type, y = TRTEC, fill = household_type)) +
+  geom_violin(trim = FALSE) +
+  facet_wrap(~ year) +
+  geom_boxplot(width = 0.2, position = position_dodge(0.9), outlier.shape = NA, alpha = 0.9) +
+  labs(title = "Violin Plot of Eldercare Time by Day Type, Period, and Household Type",
+       x = "Day Type",
+       y = " Eldercare Time",
+       fill = "Household Type") +
+  theme_minimal()
+
+# Density plot: Childcare time by day type
+ggplot(elder_combined_householdstypes, aes(x = TRTEC, fill = day_type)) +
+  geom_density(alpha = 0.5) +
+  facet_wrap(~ household_type) +
+  labs(title = "Density Plot of Eldercare Time by Day Type and Household Type",
+       x = " Eldercare Time",
+       y = "Density",
+       fill = "Day Type") +
+  theme_minimal()
+```
+#elder model selection
+```{r all subset }
+library(leaps)
+
+####all- subset: better choice due to the small predicetor size
+library(leaps)
+all_subsets2 <- regsubsets(TRTEC ~ household_type * period +
+                            household_type * day_type +
+                            season * period +
+                            day_type * period,
+                          data = elder_combined_householdstypes,
+                          nbest = 1,  # it only keeps the best model of each size
+                          nvmax = NULL,  # we are asking it to explore all subset sizes
+                          method = "exhaustive")
+summary(all_subsets2)
+#best model based on BIC
+best_model2 <- summary(all_subsets2)$which[which.min(summary(all_subsets2)$bic), ]
+elder_best_model <- lm(TRTEC ~ household_type * period + day_type + season + 
+                         period:season + period:day_type + household_type:period, 
+                       data = elder_combined_householdstypes)
+
+
+# Summary of the final model
+summary(elder_best_model)
+
+
+
+# Plot residuals vs. fitted values
+plot(resid(elder_best_model) ~ fitted(elder_best_model),
+     xlab = "Predicted Y", 
+     ylab = "Residuals", 
+     main = "Model Residuals",
+     pch = 16, col = "blue")  # Add points for better visualization
+
+# Add a horizontal line at 0 for reference
+abline(h = 0, col = "red", lwd = 2)
+
+
+
+
+
+
+```
+
+```{r CV after model finalizaion }
+library(caret)
+trainIndex2 <- createDataPartition(elder_combined_householdstypes$TRTEC, p = .8, list = FALSE)
+trainData2 <- elder_combined_householdstypes[trainIndex2, ]
+testData2 <- elder_combined_householdstypes[-trainIndex2, ]
+best_model_cv2 <- lm(formula(elder_best_model), data = trainData2)
+pred2 <- predict(best_model_cv2, newdata = testData2)
+mean((testData2$TRTEC - pred2)^2)  # Mean Squared Error 59737.71
+```
+```{r mc}
+library(usdm)
+library(car)
+predictors <- child_combined_householdstypes[, c("household_type", "period", "day_type", "season")]
+predictors <- data.frame(lapply(predictors, function(x) {
+  if (is.factor(x) || is.character(x)) as.numeric(as.factor(x)) else x
+}))
+vif_results <- vifstep(predictors, th = 10)  # Adjust the threshold if needed
+print(vif_results)
+
+
+#No variable from the 4 input variables has collinearity problem. 
+```
+
+
+```{r random forest}
+library(randomForest)
+library(caret)
+
+rf_model2 <- randomForest(TRTEC ~ household_type * period + day_type + season + 
+                         period:season + period:day_type + household_type:period, data = elder_combined_householdstypes)
+print(rf_model2)
+
+importance(rf_model2)
+varImpPlot(rf_model2)
+
+# k 10-fold cv 
+cv_control2 <- trainControl(
+  method = "cv",        
+  number = 10,            
+  verboseIter = TRUE      
+)
+
+# Train the Random Forest model with cross-validation
+rf_cv_model2 <- train(
+  TRTEC ~ household_type * period + day_type + season + 
+                         period:season + period:day_type + household_type:period,  
+  data = elder_combined_householdstypes,               
+  method = "rf",    # Random Forest method
+  trControl = cv_control,      # cv control that i defined earlier 
+  tuneGrid = expand.grid(.mtry = c(1,2, 3,4,5))   
+)
+
+# Print the results of cross-validation
+print(rf_cv_model2)
+
+# Best model summary
+rf_cv_model2$bestTune  # Show the best hyperparameter (mtry)
+
+varImpPlot(rf_model2)
+
+pred2 <- predict(rf_cv_model2, newdata = elder_combined_householdstypes)
+plot(elder_combined_householdstypes$TRTEC, pred2,
+     xlab = "Observed TRTEC", ylab = "Predicted TRTEC",
+     main = "Observed vs. Predicted TRTEC")
+abline(0, 1, col = "red", lwd = 2)
+
+
+```
+
+```{r comparison table}
+# Load necessary libraries
+library(broom)
+
+lm_equation_elder <- "TRTEC ~ household_type * period + day_type + season + period:season + period:day_type + household_type:period"
+rf_equation_elder <- "TRTEC ~ household_type * period + day_type + season + period:season + period:day_type + household_type:period"
+
+# Grabbing all the metrics from the LM
+lm_adj_r2_elder <- summary(elder_best_model)$adj.r.squared  
+lm_aic_elder <- AIC(elder_best_model)                     
+lm_bic_elder <- BIC(elder_best_model)                   
+lm_rmse_cv_elder <- sqrt(mean((testData2$TRTEC - pred2)^2))  # Cross-validated RMSE  
+
+# Grabbing all the metrics from the Random Forest model
+rf_r2_elder <- rf_cv_model2$results$Rsquared[which.min(rf_cv_model2$results$RMSE)]  
+rf_rmse_elder <- min(rf_cv_model2$results$RMSE)                                 
+rf_mae_elder <- rf_cv_model2$results$MAE[which.min(rf_cv_model2$results$RMSE)]
+
+# Creating the comparison table
+model_comparison_elder <- data.frame(
+  Model = c("Linear Model (LM)", "Random Forest (RF)"),
+  Equation = c(lm_equation_elder, rf_equation_elder),
+  `Adjusted R²` = c(lm_adj_r2_elder, rf_r2_elder),
+  AIC = c(lm_aic_elder, NA),  # AIC for LM but unavailable for RF                          
+  BIC = c(lm_bic_elder, NA),  # BIC for LM but unavailable for RF   
+  RMSE = c(lm_rmse_cv_elder, rf_rmse_elder), # Both have RMSE
+  MAE = c(NA, rf_mae_elder), # MAE for RF but unavailable for LM
+  `% Variance Explained` = c(NA, rf_r2_elder * 100)  # % Variance Explained only available for RF
+)
+print(model_comparison_elder)
+
+
+
+```
+
+
+
+
+```{r decision tree}
+library(rpart)
+library(rpart.plot)
+tree_model <- rpart(
+  TRTEC ~ household_type + period + day_type + season,
+  data = elder_combined_householdstypes,
+  method = "poisson")
+
+rpart.plot(tree_model)
+
+
+
+```
+
